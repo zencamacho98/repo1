@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Modern Calculator</title>
+    <style>
+      :root {
+        --bg: #0d1117;
+        --panel: #161b22;
+        --panel-2: #1f2730;
+        --text: #c9d1d9;
+        --muted: #8b94a0;
+        --highlight: #58a6ff;
+        --error: #f76767;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(circle at top, #1a2633 0%, #0a0d11 80%);
+        color: var(--text);
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+      }
+
+      main {
+        width: min(420px, 92vw);
+        padding: 1.5rem;
+        background: var(--panel);
+        border-radius: 18px;
+        box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+      }
+
+      h1 {
+        margin: 0 0 0.75rem;
+        font-size: 1.6rem;
+        letter-spacing: 0.02em;
+      }
+
+      .display {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(12, 15, 19, 0.75);
+        font-size: 1.6rem;
+        text-align: right;
+        letter-spacing: 0.02em;
+        color: var(--text);
+        margin-bottom: 1rem;
+      }
+
+      .keys {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.5rem;
+      }
+
+      button {
+        border: none;
+        border-radius: 12px;
+        padding: 0.9rem 0.75rem;
+        font-size: 1.1rem;
+        cursor: pointer;
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text);
+        transition: transform 0.08s ease, background 0.2s ease;
+      }
+
+      button:hover {
+        background: rgba(255, 255, 255, 0.12);
+        transform: translateY(-1px);
+      }
+
+      button:active {
+        transform: scale(0.98);
+      }
+
+      button.operator {
+        color: var(--highlight);
+      }
+
+      button.clear {
+        color: var(--error);
+      }
+
+      .toast {
+        margin-top: 1rem;
+        min-height: 1.4rem;
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+
+      .toast.error {
+        color: var(--error);
+      }
+    </style>
+  </head>
+
+  <body>
+    <main>
+      <h1>Modern Calculator</h1>
+
+      <div class="display" id="display" aria-live="polite">0</div>
+
+      <div class="keys">
+        <button data-value="7">7</button>
+        <button data-value="8">8</button>
+        <button data-value="9">9</button>
+        <button class="operator" data-value="/">÷</button>
+
+        <button data-value="4">4</button>
+        <button data-value="5">5</button>
+        <button data-value="6">6</button>
+        <button class="operator" data-value="*">×</button>
+
+        <button data-value="1">1</button>
+        <button data-value="2">2</button>
+        <button data-value="3">3</button>
+        <button class="operator" data-value="-">−</button>
+
+        <button class="clear" data-action="clear">C</button>
+        <button data-value="0">0</button>
+        <button data-value=".">.</button>
+        <button class="operator" data-value="+">+</button>
+
+        <button class="operator" data-action="back" style="grid-column: span 2">⌫</button>
+        <button class="operator" data-action="equals" style="grid-column: span 2">=</button>
+      </div>
+
+      <div class="toast" id="toast"></div>
+    </main>
+
+    <script>
+      const display = document.getElementById("display");
+      const toast = document.getElementById("toast");
+
+      let expression = "";
+
+      function setDisplay(value) {
+        display.textContent = value || "0";
+      }
+
+      function showToast(message, isError = false) {
+        toast.textContent = message;
+        toast.classList.toggle("error", isError);
+      }
+
+      function clearToast() {
+        toast.textContent = "";
+        toast.classList.remove("error");
+      }
+
+      function setExpression(value) {
+        expression = value;
+        setDisplay(expression);
+      }
+
+      function append(value) {
+        expression += value;
+        setDisplay(expression);
+        clearToast();
+      }
+
+      function backspace() {
+        expression = expression.slice(0, -1);
+        setDisplay(expression);
+        clearToast();
+      }
+
+      async function evaluate() {
+        if (!expression.trim()) return;
+
+        try {
+          const res = await fetch("/api/calc", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ expression }),
+          });
+
+          const payload = await res.json();
+
+          if (!res.ok) {
+            showToast(payload.detail || "Invalid expression", true);
+            return;
+          }
+
+          const value = payload.result;
+          setExpression(String(value));
+        } catch (err) {
+          showToast("Unable to reach calculator API", true);
+          console.error(err);
+        }
+      }
+
+      document.querySelectorAll("button").forEach((button) => {
+        button.addEventListener("click", () => {
+          const value = button.dataset.value;
+          const action = button.dataset.action;
+
+          if (action === "clear") {
+            setExpression("");
+            clearToast();
+            return;
+          }
+
+          if (action === "back") {
+            backspace();
+            return;
+          }
+
+          if (action === "equals") {
+            evaluate();
+            return;
+          }
+
+          if (value) {
+            append(value);
+          }
+        });
+      });
+
+      // Allow keyboard input
+      window.addEventListener("keydown", (event) => {
+        const allowedKeys = "0123456789.+-*/";
+
+        if (allowedKeys.includes(event.key)) {
+          event.preventDefault();
+          append(event.key);
+          return;
+        }
+
+        if (event.key === "Enter") {
+          event.preventDefault();
+          evaluate();
+          return;
+        }
+
+        if (event.key === "Backspace") {
+          event.preventDefault();
+          backspace();
+          return;
+        }
+
+        if (event.key === "Escape") {
+          event.preventDefault();
+          setExpression("");
+          clearToast();
+          return;
+        }
+      });
+    </script>
+  </body>
+</html>

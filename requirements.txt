@@ -1,0 +1,4 @@
+Flask>=2.3
+requests>=2.31
+fastapi>=0.110.0
+uvicorn[standard]>=0.23.0
